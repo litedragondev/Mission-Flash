@@ -1,5 +1,5 @@
 @echo off
 
-pythonw main.pyw
+start "" pythonw "main.pyw"
 
 exit
