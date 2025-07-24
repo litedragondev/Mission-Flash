@@ -63,7 +63,7 @@ class MacroApp:
         # Version container
         version_frame = tk.Frame(self.root, bg="#f0f0f0")
         version_frame.pack(fill='x', padx=5, pady=2)
-        tk.Label(version_frame, text="v0.3.0", bg="#f0f0f0", fg="#666", font=("Arial", 8)).pack(side='right')
+        tk.Label(version_frame, text="v0.4.0", bg="#f0f0f0", fg="#666", font=("Arial", 8)).pack(side='right')
         
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill='both', expand=True, padx=10, pady=10)
