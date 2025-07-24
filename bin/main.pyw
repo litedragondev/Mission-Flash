@@ -52,12 +52,18 @@ class MacroApp:
     def __init__(self):
         self.calibration = MacroCalibration()
         self.calibrating = False
+        self.calibration_index = 0
         self.setup_gui()
         
     def setup_gui(self):
         self.root = tk.Tk()
         self.root.title("Saisie Automatique Devis Mission")
         self.root.geometry("600x800")
+        
+        # Version container
+        version_frame = tk.Frame(self.root, bg="#f0f0f0")
+        version_frame.pack(fill='x', padx=5, pady=2)
+        tk.Label(version_frame, text="v0.3.0", bg="#f0f0f0", fg="#666", font=("Arial", 8)).pack(side='right')
         
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill='both', expand=True, padx=10, pady=10)
@@ -66,14 +72,18 @@ class MacroApp:
         
     def validate_input(self, char):
         return char in '0123456789-/'
+
+    def validate_num(self, char):
+        return char in '0123456789-/azertyuiopqsdfghjklmwxcvbnAZERTYUIOPQSDFGHJKLMWXCVBN'
     
     def validate_montant(self, char):
-        return char in '0123456789-/'
+        return char in '0123456789-/,'
     
     def setup_devis_tab(self, notebook):
         self.devis_frame = ttk.Frame(notebook)
         notebook.add(self.devis_frame, text="Devis")
-        
+
+        vcmd_num = (self.root.register(self.validate_num), '%S')
         vcmd = (self.root.register(self.validate_input), '%S')
         vcmd_montant = (self.root.register(self.validate_montant), '%S')
 
@@ -122,7 +132,7 @@ class MacroApp:
         self.entry_fenetre.pack(padx=10, pady=5)
         
         tk.Label(self.main_form_frame, text="Numéro de commande :").pack(pady=2)
-        self.entry_num_commande = tk.Entry(self.main_form_frame, width=50, validate='key', validatecommand=vcmd)
+        self.entry_num_commande = tk.Entry(self.main_form_frame, width=50, validate='key', validatecommand=vcmd_num)
         self.entry_num_commande.pack(padx=10, pady=5)
         
         tk.Label(self.main_form_frame, text="Date (JJ/MM/AAAA slashs optionnels) :").pack(pady=2)
@@ -185,22 +195,40 @@ class MacroApp:
             self.calibrating = True
             self.calibrer_button.config(text="Annuler", state="normal")
             
-            for name, description in elements_to_calibrate:
+            for i in range(self.calibration_index, len(elements_to_calibrate)):
                 if not self.calibrating:
                     break
+                name, description = elements_to_calibrate[i]
                 try:
                     self.calibration_status.config(text=f"Calibration en cours... Positionnez sur {description} puis pressez CTRL", fg="orange")
                     self.root.update()
-                    self.calibration.capture_coordinate(name, description)
+                    
+                    # Capture coordinate with interruption check
+                    print(f"Positionnez votre curseur sur: {description}")
+                    print("Appuyez sur CTRL pour capturer la position...")
+                    
+                    while self.calibrating:
+                        if keyboard.is_pressed('ctrl'):
+                            x, y = pyautogui.position()
+                            self.calibration.coordinates[name] = {"x": x, "y": y, "description": description}
+                            print(f"Coordonnée '{name}' capturée: ({x}, {y})")
+                            break
+                        time.sleep(0.1)
+                    
+                    if not self.calibrating:
+                        break
+                        
                     self.update_coord_list()
+                    self.calibration_index = i + 1
                     time.sleep(0.25)
                 except KeyboardInterrupt:
                     break
             
-            if self.calibrating:
+            if self.calibrating and self.calibration_index >= len(elements_to_calibrate):
                 self.calibration.save_config()
                 self.calibration_status.config(text="Calibration terminée!", fg="green")
                 self.update_coord_list()
+                self.calibration_index = 0
             
             self.calibrating = False
             self.calibrer_button.config(text="Retour", state="normal")
@@ -210,10 +238,13 @@ class MacroApp:
         thread.start()
     
     def reset_calibration(self):
+        self.calibrating = False
+        self.calibration_index = 0
         self.calibration.coordinates = {}
         self.calibration.save_config()
         self.update_coord_list()
-        self.calibration_status.config(text="Calibration réinitialisée", fg="blue")
+        self.calibration_status.config(text="Configuration supprimée. Prêt pour une nouvelle calibration.", fg="blue")
+        self.calibrer_button.config(text="Retour", state="normal")
     
     def update_coord_list(self):
         self.coord_listbox.delete(0, tk.END)
@@ -266,93 +297,93 @@ class MacroApp:
                                f"Coordonnée '{coord_name}' non configurée. "
                                "Veuillez refaire la calibration.")
             return False
-    
+
     def lancement_macro(self):
         numCommande = self.entry_num_commande.get()
         date = self.entry_date.get()
         remarque = self.text_remarque.get("1.0", tk.END).strip()
         fenetre = self.entry_fenetre.get()
         montant = self.entry_montant.get() if self.montant_var.get() else None
-        
+
         if not numCommande or not date or not remarque or not fenetre:
-            messagebox.showwarning("Champs manquants", 
-                                 "Veuillez remplir tous les champs requis.")
+            messagebox.showwarning("Champs manquants",
+                                   "Veuillez remplir tous les champs requis.")
             return
-        
+
         if self.montant_var.get() and not montant:
-            messagebox.showwarning("Champ manquant", 
-                                 "Veuillez saisir le montant de la commande.")
+            messagebox.showwarning("Champ manquant",
+                                   "Veuillez saisir le montant de la commande.")
             return
-        
-        required_coords = ["commandes_recues", "nouvelle_commande", "num_commande", 
-                          "date", "remarque", "validation"]
-        missing_coords = [coord for coord in required_coords 
-                         if coord not in self.calibration.coordinates]
-        
+
+        required_coords = ["commandes_recues", "nouvelle_commande", "num_commande",
+                           "date", "remarque", "validation"]
+        missing_coords = [coord for coord in required_coords
+                          if coord not in self.calibration.coordinates]
+
         if missing_coords:
-            messagebox.showerror("Calibration incomplète", 
-                               f"Coordonnées manquantes: {', '.join(missing_coords)}\n"
-                               "Veuillez compléter la calibration.")
+            messagebox.showerror("Calibration incomplète",
+                                 f"Coordonnées manquantes: {', '.join(missing_coords)}\n"
+                                 "Veuillez compléter la calibration.")
             return
-        
+
         if not self.focus_fenetre(fenetre):
             messagebox.showerror("Erreur", f"Fenêtre contenant '{fenetre}' non trouvée.")
             return
-        
+
         self.status_label.config(text="Exécution de la macro en cours...", fg="blue")
         self.root.update()
-        
+
         try:
             time.sleep(0.5)
-            
+
             if not self.safe_click("commandes_recues"):
                 return
             time.sleep(0.25)
-            
+
             if not self.safe_click("nouvelle_commande"):
                 return
             time.sleep(0.25)
-            
+
             if not self.safe_click("num_commande"):
                 return
             time.sleep(0.25)
-            pyperclip.copy(numCommande)
-            pyautogui.hotkey('ctrl', 'v')
-            
+            print(f"Saisie du numéro de commande : {numCommande}")
+            pyautogui.write(numCommande, interval=0.01)
+
             if not self.safe_click("date"):
                 return
             time.sleep(0.25)
-            pyperclip.copy(date)
-            pyautogui.hotkey('ctrl', 'v')
-            
+            print(f"Saisie de la date : {date}")
+            pyautogui.write(date, interval=0.01)
+
             if self.cocher_case_var.get():
                 if "case_a_cocher" in self.calibration.coordinates:
                     self.safe_click("case_a_cocher")
                     time.sleep(0.25)
-            
+
             if self.montant_var.get() and montant:
                 if "montant" in self.calibration.coordinates:
                     self.safe_click("montant")
                     time.sleep(0.25)
-                    pyperclip.copy(montant)
-                    pyautogui.hotkey('ctrl', 'v')
-            
+                    print(f"Saisie du montant : {montant}")
+                    pyautogui.write(montant, interval=0.01)
+
             if not self.safe_click("remarque"):
                 return
             time.sleep(0.25)
-            pyperclip.copy(remarque)
-            pyautogui.hotkey('ctrl', 'v')
-            
+            print(f"Saisie de la remarque : {remarque}")
+            pyautogui.write(remarque, interval=0.01)
+
             if not self.safe_click("validation"):
                 return
-            
+
             self.status_label.config(text="Macro exécutée avec succès!", fg="green")
             print("Fin de la Macro")
-            
+
         except Exception as e:
             messagebox.showerror("Erreur d'exécution", f"Erreur lors de l'exécution: {str(e)}")
             self.status_label.config(text="Erreur lors de l'exécution", fg="red")
-    
+
     def run(self):
         self.root.mainloop()
 
