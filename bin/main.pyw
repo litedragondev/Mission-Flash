@@ -54,94 +54,94 @@ class MacroApp:
         
     def setup_gui(self):
         self.root = tk.Tk()
-        self.root.title("Saisie Automatique Devis Mission - Avec Calibration")
-        self.root.geometry("600x700")
+        self.root.title("Saisie Automatique Devis Mission")
+        self.root.geometry("600x800")
         
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill='both', expand=True, padx=10, pady=10)
         
-        self.setup_calibration_tab(notebook)
-        self.setup_main_tab(notebook)
+        self.setup_devis_tab(notebook)
         
-    def setup_calibration_tab(self, notebook):
-        calibration_frame = ttk.Frame(notebook)
-        notebook.add(calibration_frame, text="Calibration")
+    def setup_devis_tab(self, notebook):
+        self.devis_frame = ttk.Frame(notebook)
+        notebook.add(self.devis_frame, text="Devis")
         
-        instructions = tk.Text(calibration_frame, height=8, width=70, wrap=tk.WORD)
-        instructions.pack(padx=10, pady=10)
-        instructions.insert(tk.END, """INSTRUCTIONS DE CALIBRATION:
-
-1. Ouvrez votre application cible
-2. Cliquez sur 'Démarrer la calibration'
-3. Pour chaque élément, positionnez votre curseur à l'endroit exact où cliquer
-4. Appuyez sur CTRL+C pour enregistrer la position
-5. Répétez pour tous les éléments
-6. Testez la configuration avec l'onglet 'Saisie'
-
-Note: La calibration doit être refaite sur chaque nouvel ordinateur.""")
+        # Calibration button
+        tk.Button(self.devis_frame, text="Calibrer", command=self.toggle_calibration,
+                 bg="orange", fg="white", font=("Arial", 10, "bold")).pack(pady=5)
+        
+        # Calibration section (initially hidden)
+        self.calibration_frame = tk.Frame(self.devis_frame)
+        self.calibration_visible = False
+        
+        instructions = tk.Text(self.calibration_frame, height=6, width=70, wrap=tk.WORD)
+        instructions.pack(padx=10, pady=5)
+        instructions.insert(tk.END, """CALIBRATION: Ouvrez l'application cible, cliquez 'Démarrer', positionnez le curseur sur chaque élément et appuyez CTRL+C.""")
         instructions.config(state=tk.DISABLED)
         
-        tk.Button(calibration_frame, text="Démarrer la calibration", 
-                 command=self.start_calibration, bg="orange", fg="white", 
-                 font=("Arial", 12, "bold")).pack(pady=10)
+        tk.Button(self.calibration_frame, text="Démarrer la calibration", 
+                 command=self.start_calibration, bg="red", fg="white").pack(pady=5)
         
-        self.calibration_status = tk.Label(calibration_frame, text="", fg="red")
-        self.calibration_status.pack(pady=5)
+        self.calibration_status = tk.Label(self.calibration_frame, text="", fg="red")
+        self.calibration_status.pack(pady=2)
         
-        tk.Label(calibration_frame, text="Coordonnées configurées:", font=("Arial", 10, "bold")).pack(pady=(20,5))
-        
-        self.coord_listbox = tk.Listbox(calibration_frame, height=10, width=80)
+        self.coord_listbox = tk.Listbox(self.calibration_frame, height=8, width=70)
         self.coord_listbox.pack(padx=10, pady=5)
         
-        button_frame = tk.Frame(calibration_frame)
-        button_frame.pack(pady=10)
+        button_frame = tk.Frame(self.calibration_frame)
+        button_frame.pack(pady=5)
         
-        tk.Button(button_frame, text="Actualiser la liste", 
-                 command=self.update_coord_list).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Supprimer la sélection", 
-                 command=self.delete_selected_coord).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Test rapide", 
-                 command=self.quick_test).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Actualiser", command=self.update_coord_list).pack(side=tk.LEFT, padx=2)
+        tk.Button(button_frame, text="Supprimer", command=self.delete_selected_coord).pack(side=tk.LEFT, padx=2)
+        tk.Button(button_frame, text="Test", command=self.quick_test).pack(side=tk.LEFT, padx=2)
         
         self.update_coord_list()
         
-    def setup_main_tab(self, notebook):
-        main_frame = ttk.Frame(notebook)
-        notebook.add(main_frame, text="Saisie")
+        # Separator
+        ttk.Separator(self.devis_frame, orient='horizontal').pack(fill='x', pady=10)
         
-        tk.Label(main_frame, text="Nom de la fenêtre :").pack(pady=2)
-        self.entry_fenetre = tk.Entry(main_frame, width=50)
+        # Main form
+        tk.Label(self.devis_frame, text="Nom de la fenêtre :").pack(pady=2)
+        self.entry_fenetre = tk.Entry(self.devis_frame, width=50)
         self.entry_fenetre.pack(padx=10, pady=5)
         
-        tk.Label(main_frame, text="Numéro de commande :").pack(pady=2)
-        self.entry_num_commande = tk.Entry(main_frame, width=50)
+        tk.Label(self.devis_frame, text="Numéro de commande :").pack(pady=2)
+        self.entry_num_commande = tk.Entry(self.devis_frame, width=50)
         self.entry_num_commande.pack(padx=10, pady=5)
         
-        tk.Label(main_frame, text="Date :").pack(pady=2)
-        self.entry_date = tk.Entry(main_frame, width=50)
+        tk.Label(self.devis_frame, text="Date :").pack(pady=2)
+        self.entry_date = tk.Entry(self.devis_frame, width=50)
         self.entry_date.pack(padx=10, pady=5)
         
-        tk.Label(main_frame, text="Remarque (multi-ligne) :").pack(pady=2)
-        self.text_remarque = tk.Text(main_frame, height=5, width=50)
+        tk.Label(self.devis_frame, text="Remarque (multi-ligne) :").pack(pady=2)
+        self.text_remarque = tk.Text(self.devis_frame, height=5, width=50)
         self.text_remarque.pack(padx=10, pady=5)
         
         self.cocher_case_var = tk.BooleanVar()
-        chk1 = tk.Checkbutton(main_frame, text="Cocher une case dans le formulaire", 
+        chk1 = tk.Checkbutton(self.devis_frame, text="Cocher une case dans le formulaire", 
                              variable=self.cocher_case_var)
         chk1.pack(pady=5)
         
         self.montant_var = tk.BooleanVar()
-        chk2 = tk.Checkbutton(main_frame, text="Ajouter le champ 'Montant de la commande'", 
+        chk2 = tk.Checkbutton(self.devis_frame, text="Ajouter le champ 'Montant de la commande'", 
                              variable=self.montant_var, command=self.toggle_montant_field)
         chk2.pack(pady=5)
         
-        self.entry_montant = tk.Entry(main_frame, width=50)
+        self.entry_montant = tk.Entry(self.devis_frame, width=50)
         
-        tk.Button(main_frame, text="Lancer la macro", command=self.lancement_macro,
+        tk.Button(self.devis_frame, text="Lancer la macro", command=self.lancement_macro,
                  bg="green", fg="white", font=("Arial", 12, "bold")).pack(pady=15)
         
-        self.status_label = tk.Label(main_frame, text="", fg="blue")
+        self.status_label = tk.Label(self.devis_frame, text="", fg="blue")
         self.status_label.pack(pady=5)
+    
+    def toggle_calibration(self):
+        if self.calibration_visible:
+            self.calibration_frame.pack_forget()
+            self.calibration_visible = False
+        else:
+            self.calibration_frame.pack(fill='x', padx=10, pady=5, after=self.devis_frame.winfo_children()[0])
+            self.calibration_visible = True
     
     def start_calibration(self):
         def calibration_thread():
