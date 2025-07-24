@@ -7,6 +7,7 @@ from tkinter import messagebox, ttk
 import json
 import os
 import threading
+import pyperclip
 
 class MacroCalibration:
     def __init__(self):
@@ -42,14 +43,15 @@ class MacroCalibration:
             return False
         
         print(f"Positionnez votre curseur sur: {description}")
-        print("Appuyez sur CTRL+C pour capturer la position...")
+        print("Appuyez sur CTRL pour capturer la position...")
         
-        keyboard.wait('ctrl+c')
+        keyboard.wait('ctrl')
         on_click()
 
 class MacroApp:
     def __init__(self):
         self.calibration = MacroCalibration()
+        self.calibrating = False
         self.setup_gui()
         
     def setup_gui(self):
@@ -62,13 +64,25 @@ class MacroApp:
         
         self.setup_devis_tab(notebook)
         
+    def validate_input(self, char):
+        return char in '0123456789-/'
+    
+    def validate_montant(self, char):
+        return char in '0123456789-/'
+    
     def setup_devis_tab(self, notebook):
         self.devis_frame = ttk.Frame(notebook)
         notebook.add(self.devis_frame, text="Devis")
         
+        vcmd = (self.root.register(self.validate_input), '%S')
+        vcmd_montant = (self.root.register(self.validate_montant), '%S')
+
+        windowName = tk.StringVar(value="Alteva.MissionOne")
+        
         # Calibration button
-        tk.Button(self.devis_frame, text="Calibrer", command=self.toggle_calibration,
-                 bg="orange", fg="white", font=("Arial", 10, "bold")).pack(pady=5)
+        self.calibrer_button = tk.Button(self.devis_frame, text="Calibrer", command=self.toggle_calibration,
+                 bg="orange", fg="white", font=("Arial", 10, "bold"))
+        self.calibrer_button.pack(pady=5)
         
         # Calibration section (initially hidden)
         self.calibration_frame = tk.Frame(self.devis_frame)
@@ -76,7 +90,7 @@ class MacroApp:
         
         instructions = tk.Text(self.calibration_frame, height=6, width=70, wrap=tk.WORD)
         instructions.pack(padx=10, pady=5)
-        instructions.insert(tk.END, """CALIBRATION: Ouvrez l'application cible, cliquez 'Démarrer', positionnez le curseur sur chaque élément et appuyez CTRL+C.""")
+        instructions.insert(tk.END, """CALIBRATION: Ouvrez Mission One dans l'onglet Devis, cliquez 'Démarrer la calibration', positionnez le curseur sur chaque élément et appuyez CTRL.""")
         instructions.config(state=tk.DISABLED)
         
         tk.Button(self.calibration_frame, text="Démarrer la calibration", 
@@ -91,56 +105,68 @@ class MacroApp:
         button_frame = tk.Frame(self.calibration_frame)
         button_frame.pack(pady=5)
         
-        tk.Button(button_frame, text="Actualiser", command=self.update_coord_list).pack(side=tk.LEFT, padx=2)
+        tk.Button(button_frame, text="Reset", command=self.reset_calibration).pack(side=tk.LEFT, padx=2)
         tk.Button(button_frame, text="Supprimer", command=self.delete_selected_coord).pack(side=tk.LEFT, padx=2)
         tk.Button(button_frame, text="Test", command=self.quick_test).pack(side=tk.LEFT, padx=2)
         
         self.update_coord_list()
         
-        # Separator
-        ttk.Separator(self.devis_frame, orient='horizontal').pack(fill='x', pady=10)
+        # Main form (in a separate frame for easy hide/show)
+        self.main_form_frame = tk.Frame(self.devis_frame)
+        self.main_form_frame.pack(fill='both', expand=True)
         
-        # Main form
-        tk.Label(self.devis_frame, text="Nom de la fenêtre :").pack(pady=2)
-        self.entry_fenetre = tk.Entry(self.devis_frame, width=50)
+        ttk.Separator(self.main_form_frame, orient='horizontal').pack(fill='x', pady=10)
+        
+        tk.Label(self.main_form_frame, text="Nom de la fenêtre :").pack(pady=2)
+        self.entry_fenetre = tk.Entry(self.main_form_frame, textvariable=windowName, width=50)
         self.entry_fenetre.pack(padx=10, pady=5)
         
-        tk.Label(self.devis_frame, text="Numéro de commande :").pack(pady=2)
-        self.entry_num_commande = tk.Entry(self.devis_frame, width=50)
+        tk.Label(self.main_form_frame, text="Numéro de commande :").pack(pady=2)
+        self.entry_num_commande = tk.Entry(self.main_form_frame, width=50, validate='key', validatecommand=vcmd)
         self.entry_num_commande.pack(padx=10, pady=5)
         
-        tk.Label(self.devis_frame, text="Date :").pack(pady=2)
-        self.entry_date = tk.Entry(self.devis_frame, width=50)
+        tk.Label(self.main_form_frame, text="Date (JJ/MM/AAAA slashs optionnels) :").pack(pady=2)
+        self.entry_date = tk.Entry(self.main_form_frame, width=50, validate='key', validatecommand=vcmd_montant)
         self.entry_date.pack(padx=10, pady=5)
         
-        tk.Label(self.devis_frame, text="Remarque (multi-ligne) :").pack(pady=2)
-        self.text_remarque = tk.Text(self.devis_frame, height=5, width=50)
+        tk.Label(self.main_form_frame, text="Remarque (multi-ligne) :").pack(pady=2)
+        self.text_remarque = tk.Text(self.main_form_frame, height=5, width=50)
         self.text_remarque.pack(padx=10, pady=5)
         
         self.cocher_case_var = tk.BooleanVar()
-        chk1 = tk.Checkbutton(self.devis_frame, text="Cocher une case dans le formulaire", 
+        chk1 = tk.Checkbutton(self.main_form_frame, text="Cocher une case dans le formulaire", 
                              variable=self.cocher_case_var)
         chk1.pack(pady=5)
         
         self.montant_var = tk.BooleanVar()
-        chk2 = tk.Checkbutton(self.devis_frame, text="Ajouter le champ 'Montant de la commande'", 
+        chk2 = tk.Checkbutton(self.main_form_frame, text="Ajouter le champ 'Montant de la commande'", 
                              variable=self.montant_var, command=self.toggle_montant_field)
         chk2.pack(pady=5)
         
-        self.entry_montant = tk.Entry(self.devis_frame, width=50)
+        self.entry_montant = tk.Entry(self.main_form_frame, width=50, validate='key', validatecommand=vcmd_montant)
         
-        tk.Button(self.devis_frame, text="Lancer la macro", command=self.lancement_macro,
+        tk.Button(self.main_form_frame, text="Lancer la macro", command=self.lancement_macro,
                  bg="green", fg="white", font=("Arial", 12, "bold")).pack(pady=15)
         
-        self.status_label = tk.Label(self.devis_frame, text="", fg="blue")
+        self.status_label = tk.Label(self.main_form_frame, text="", fg="blue")
         self.status_label.pack(pady=5)
     
     def toggle_calibration(self):
+        if self.calibrating:
+            self.calibrating = False
+            self.calibration_status.config(text="Calibration annulée", fg="red")
+            self.calibrer_button.config(text="Retour", state="normal")
+            return
+            
         if self.calibration_visible:
             self.calibration_frame.pack_forget()
+            self.main_form_frame.pack(fill='both', expand=True)
+            self.calibrer_button.config(text="Calibrer")
             self.calibration_visible = False
         else:
+            self.main_form_frame.pack_forget()
             self.calibration_frame.pack(fill='x', padx=10, pady=5, after=self.devis_frame.winfo_children()[0])
+            self.calibrer_button.config(text="Retour")
             self.calibration_visible = True
     
     def start_calibration(self):
@@ -156,9 +182,14 @@ class MacroApp:
                 ("validation", "Bouton 'Validation'")
             ]
             
+            self.calibrating = True
+            self.calibrer_button.config(text="Annuler", state="normal")
+            
             for name, description in elements_to_calibrate:
+                if not self.calibrating:
+                    break
                 try:
-                    self.calibration_status.config(text=f"Calibration en cours... Positionnez sur {description} puis, appuyez sur CTRL+C.", fg="orange")
+                    self.calibration_status.config(text=f"Calibration en cours... Positionnez sur {description} puis pressez CTRL", fg="orange")
                     self.root.update()
                     self.calibration.capture_coordinate(name, description)
                     self.update_coord_list()
@@ -166,13 +197,23 @@ class MacroApp:
                 except KeyboardInterrupt:
                     break
             
-            self.calibration.save_config()
-            self.calibration_status.config(text="Calibration terminée!", fg="green")
-            self.update_coord_list()
+            if self.calibrating:
+                self.calibration.save_config()
+                self.calibration_status.config(text="Calibration terminée!", fg="green")
+                self.update_coord_list()
+            
+            self.calibrating = False
+            self.calibrer_button.config(text="Retour", state="normal")
         
         thread = threading.Thread(target=calibration_thread)
         thread.daemon = True
         thread.start()
+    
+    def reset_calibration(self):
+        self.calibration.coordinates = {}
+        self.calibration.save_config()
+        self.update_coord_list()
+        self.calibration_status.config(text="Calibration réinitialisée", fg="blue")
     
     def update_coord_list(self):
         self.coord_listbox.delete(0, tk.END)
@@ -201,7 +242,7 @@ class MacroApp:
     
     def toggle_montant_field(self):
         if self.montant_var.get():
-            self.entry_montant.pack(padx=10, pady=5)
+            self.entry_montant.pack(padx=10, pady=5, before=self.main_form_frame.winfo_children()[-2])
         else:
             self.entry_montant.pack_forget()
     
@@ -275,12 +316,14 @@ class MacroApp:
             if not self.safe_click("num_commande"):
                 return
             time.sleep(0.25)
-            pyautogui.write(numCommande)
+            pyperclip.copy(numCommande)
+            pyautogui.hotkey('ctrl', 'v')
             
             if not self.safe_click("date"):
                 return
             time.sleep(0.25)
-            pyautogui.write(date)
+            pyperclip.copy(date)
+            pyautogui.hotkey('ctrl', 'v')
             
             if self.cocher_case_var.get():
                 if "case_a_cocher" in self.calibration.coordinates:
@@ -291,15 +334,14 @@ class MacroApp:
                 if "montant" in self.calibration.coordinates:
                     self.safe_click("montant")
                     time.sleep(0.25)
-                    pyautogui.write(montant)
+                    pyperclip.copy(montant)
+                    pyautogui.hotkey('ctrl', 'v')
             
             if not self.safe_click("remarque"):
                 return
             time.sleep(0.25)
-            for i, ligne in enumerate(remarque.splitlines()):
-                pyautogui.write(ligne)
-                if i < len(remarque.splitlines()) - 1:
-                    pyautogui.press('enter')
+            pyperclip.copy(remarque)
+            pyautogui.hotkey('ctrl', 'v')
             
             if not self.safe_click("validation"):
                 return
@@ -313,6 +355,9 @@ class MacroApp:
     
     def run(self):
         self.root.mainloop()
+
+    def hideWidget(widget):
+        widget.pack_forget()
 
 if __name__ == "__main__":
     pyautogui.FAILSAFE = True
