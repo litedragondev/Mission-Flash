@@ -156,14 +156,13 @@ class MacroApp:
                 ("validation", "Bouton 'Validation'")
             ]
             
-            self.calibration_status.config(text="Calibration en cours...", fg="orange")
-            self.root.update()
-            
             for name, description in elements_to_calibrate:
                 try:
+                    self.calibration_status.config(text=f"Calibration en cours... Positionnez sur {description} puis, appuyez sur CTRL+C.", fg="orange")
+                    self.root.update()
                     self.calibration.capture_coordinate(name, description)
                     self.update_coord_list()
-                    time.sleep(0.5)
+                    time.sleep(0.25)
                 except KeyboardInterrupt:
                     break
             
